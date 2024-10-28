@@ -7,7 +7,7 @@ import os
 # Define the CSV file name and headers
 CSV_FILE = './Data/inventory.csv'
 FIELDNAMES = ['ean', 'amount', 'name', 'popular']
-Buttons = ['EAN', 'Antall', 'Navn', 'Populær', 'Undo']
+Buttons = ['EAN', 'Antall', 'Navn', 'Populær']
 
 class InventoryItem:
     """Represents a single inventory item."""
@@ -68,7 +68,7 @@ class InventoryManager:
     def undo(self):
         """Reverts to the last saved state, if available."""
         if not self.history:
-            messagebox.showwarning("Undo", "No actions to undo.")
+            messagebox.showwarning("Angre", "Ingenting å angre")
             return
 
         # Restore the last saved state
@@ -161,7 +161,7 @@ class InventoryGUI:
         self.manager.save_state()
         ean = simpledialog.askstring("Endre linje", "Endre strekkoden til linjen du vil endre:")
         if not ean:
-            messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
+            # messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
             return
 
         # Find the item with the given EAN
@@ -187,8 +187,8 @@ class InventoryGUI:
         else:
             ean = simpledialog.askstring("Slett linje", "Legg inn strekkoden til linjen du vil slette:")
             if not ean:
-                messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
-            return
+                # messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
+                return
 
             index = next((i for i, item in enumerate(self.manager.items) if item.ean == ean), None)
             if index is None:
@@ -253,12 +253,12 @@ class InventoryGUI:
             popular = popular_entry.get()
 
             if not ean or not amount or not name or not popular:
-                messagebox.showwarning("Input Error", "Please fill all fields.")
+                messagebox.showwarning("Innlegg feilet", "Fyll inn alle bokser.")
                 return
             try:
                 amount_int = int(amount)
             except ValueError:
-                messagebox.showwarning("Input Error", "Amount must be an integer.")
+                messagebox.showwarning("Innlegg feilet", "Må være et heltall.")
                 return
             new_item = InventoryItem(ean, amount_int, name, popular)
             if index is not None:
