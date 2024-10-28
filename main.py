@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 from PIL import Image, ImageTk
 import csv
 import os
@@ -7,6 +7,7 @@ import os
 # Define the CSV file name and headers
 CSV_FILE = './Data/inventory.csv'
 FIELDNAMES = ['ean', 'amount', 'name', 'popular']
+Buttons = ['EAN', 'Antall', 'Navn', 'Populær', 'Undo']
 
 class InventoryItem:
     """Represents a single inventory item."""
@@ -21,6 +22,7 @@ class InventoryManager:
     def __init__(self, filename):
         self.filename = filename
         self.items = []
+        self.history = []
         self.load_inventory()
 
     def load_inventory(self):
@@ -57,6 +59,23 @@ class InventoryManager:
                     'popular': item.popular
                 })
 
+    def save_state(self):
+        """Saves a snapshot of the current items for undo functionality."""
+        # Deep copy the current state to avoid reference issues
+        state = [InventoryItem(item.ean, item.amount, item.name, item.popular) for item in self.items]
+        self.history.append(state)
+
+    def undo(self):
+        """Reverts to the last saved state, if available."""
+        if not self.history:
+            messagebox.showwarning("Undo", "No actions to undo.")
+            return
+
+        # Restore the last saved state
+        self.items = self.history.pop()
+        self.save_inventory()
+
+
     def add_item(self, item):
         """Adds a new item to the inventory."""
         self.items.append(item)
@@ -77,7 +96,7 @@ class InventoryGUI:
     def __init__(self, root, manager):
         self.root = root
         self.manager = manager
-        self.root.title("Inventory Management")
+        self.root.title("Bachus lagerbeholdning")
         logo_path = 'logo'  # Replace with your image file path
         self.logo_image = Image.open(logo_path)
         self.logo_photo = ImageTk.PhotoImage(self.logo_image)
@@ -91,8 +110,8 @@ class InventoryGUI:
     def create_widgets(self):
         """Creates GUI widgets."""
         # Treeview for displaying inventory
-        self.tree = ttk.Treeview(self.root, columns=FIELDNAMES, show='headings')
-        for field in FIELDNAMES:
+        self.tree = ttk.Treeview(self.root, columns=Buttons, show='headings')
+        for field in Buttons:
             self.tree.heading(field, text=field)
             self.tree.column(field, width=100)
         self.tree.pack(fill=tk.BOTH, expand=True)
@@ -102,18 +121,22 @@ class InventoryGUI:
         frame.pack(fill=tk.X)
 
         # Add, Edit, Delete, and Import buttons
-        self.add_button = tk.Button(frame, text="Add Item", command=self.add_item)
+        self.add_button = tk.Button(frame, text="Legg til linje", command=self.add_item)
         self.add_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.edit_button = tk.Button(frame, text="Edit Item", command=self.edit_item)
+        self.edit_button = tk.Button(frame, text="Rediger linje", command=self.edit_item)
         self.edit_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.delete_button = tk.Button(frame, text="Delete Item", command=self.delete_item)
+        self.delete_button = tk.Button(frame, text="Slett linje", command=self.delete_item)
         self.delete_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # New Import CSV button
-        self.import_button = tk.Button(frame, text="Import CSV", command=self.import_csv)
+        self.import_button = tk.Button(frame, text="Importer endring", command=self.import_csv)
         self.import_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # Undo button
+        self.undo_button = tk.Button(frame, text="Angre" , command=self.undo)
+        self.undo_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
     def load_items(self):
         """Loads items into the Treeview."""
@@ -128,28 +151,62 @@ class InventoryGUI:
 
     def add_item(self):
         """Opens a window to add a new item."""
+        self.manager.save_state()
         self.item_window(None)
+        
 
     def edit_item(self):
-        """Opens a window to edit the selected item."""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Select Item", "Please select an item to edit.")
+        """Opens a window to edit an item based on its EAN."""
+        # Prompt the user to enter the EAN of the item to edit
+        self.manager.save_state()
+        ean = simpledialog.askstring("Endre linje", "Endre strekkoden til linjen du vil endre:")
+        if not ean:
+            messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
             return
-        index = int(selected[0])
+
+        # Find the item with the given EAN
+        index = next((i for i, item in enumerate(self.manager.items) if item.ean == ean), None)
+        if index is None:
+            messagebox.showwarning("Feil EAN", f"Ingen linje med EAN {ean} er funnet i inventaret.")
+            return
+
+        # Open the item editing window
         self.item_window(index)
 
     def delete_item(self):
-        """Deletes the selected item after confirmation."""
         selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Select Item", "Please select an item to delete.")
+        if selected:
+            index = int(selected[0])
+            item = self.manager.items[index]
+            item_info = f"EAN: {item.ean}\nAntall: {item.amount}\nNavn: {item.name}\nPopulær: {item.popular}"
+            self.manager.save_state()
+            confirm = messagebox.askyesno("Er du sikker?", f"Sikker på at du vil slette denne linjen?\n\n{item_info}")
+            if confirm:
+                self.manager.delete_item(index)
+                self.load_items()
+        else:
+            ean = simpledialog.askstring("Slett linje", "Legg inn strekkoden til linjen du vil slette:")
+            if not ean:
+                messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
             return
-        index = int(selected[0])
-        confirm = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this item?")
-        if confirm:
-            self.manager.delete_item(index)
-            self.load_items()
+
+            index = next((i for i, item in enumerate(self.manager.items) if item.ean == ean), None)
+            if index is None:
+                messagebox.showwarning("Feil EAN", f"Ingen linje med EAN {ean} er funnet i inventaret.")
+            return
+
+            item = self.manager.items[index]
+            item_info = f"EAN: {item.ean}\nAntall: {item.amount}\nNavn: {item.name}\nPopulær: {item.popular}"
+            self.manager.save_state()
+            confirm = messagebox.askyesno("Er du sikker?", f"Sikker på at du vil slette denne linjen?\n\n{item_info}")
+            if confirm:
+                self.manager.delete_item(index)
+                self.load_items()
+
+    def undo(self):
+        """Calls the undo function of the manager and refreshes the display."""
+        self.manager.undo()
+        self.load_items()
 
     def item_window(self, index):
         """Creates a window to add or edit an item."""
@@ -158,7 +215,7 @@ class InventoryGUI:
         else:
             item = None
         win = tk.Toplevel(self.root)
-        win.title("Add/Edit Item")
+        win.title("Legg til linje")
 
         # EAN field
         tk.Label(win, text="EAN").grid(row=0, column=0, padx=5, pady=5)
@@ -168,21 +225,21 @@ class InventoryGUI:
             ean_entry.insert(0, item.ean)
 
         # Amount field
-        tk.Label(win, text="Amount").grid(row=1, column=0, padx=5, pady=5)
+        tk.Label(win, text="Antall").grid(row=1, column=0, padx=5, pady=5)
         amount_entry = tk.Entry(win)
         amount_entry.grid(row=1, column=1, padx=5, pady=5)
         if item:
             amount_entry.insert(0, str(item.amount))
 
         # Name field
-        tk.Label(win, text="Name").grid(row=2, column=0, padx=5, pady=5)
+        tk.Label(win, text="Navn").grid(row=2, column=0, padx=5, pady=5)
         name_entry = tk.Entry(win)
         name_entry.grid(row=2, column=1, padx=5, pady=5)
         if item:
             name_entry.insert(0, item.name)
 
         # popular field
-        tk.Label(win, text="popular (Y/N)").grid(row=3, column=0, padx=5, pady=5)
+        tk.Label(win, text="Populær").grid(row=3, column=0, padx=5, pady=5)
         popular_entry = tk.Entry(win)
         popular_entry.grid(row=3, column=1, padx=5, pady=5)
         if item:
@@ -218,8 +275,8 @@ class InventoryGUI:
     def import_csv(self):
         """Imports items from a CSV file."""
         file_path = filedialog.askopenfilename(
-            title="Select CSV File",
-            filetypes=(("CSV Files", "*.csv"), ("All Files", "*.*"))
+            title="Velg filen for endring",
+            filetypes=(("Excel filer", "*.xlsx"),("CSV Files", "*.csv"), ("All Files", "*.*"))
         )
         if not file_path:
             return  # User canceled the file dialog
