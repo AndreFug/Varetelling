@@ -155,22 +155,19 @@ class InventoryGUI:
         self.item_window(None)
         
 
+
     def edit_item(self):
-        """Opens a window to edit an item based on its EAN."""
-        # Prompt the user to enter the EAN of the item to edit
-        self.manager.save_state()
-        ean = simpledialog.askstring("Endre linje", "Endre strekkoden til linjen du vil endre:")
-        if not ean:
-            # messagebox.showwarning("Innlegg feil", "Legg inn korekt strekkode")
-            return
-
-        # Find the item with the given EAN
-        index = next((i for i, item in enumerate(self.manager.items) if item.ean == ean), None)
-        if index is None:
-            messagebox.showwarning("Feil EAN", f"Ingen linje med EAN {ean} er funnet i inventaret.")
-            return
-
-        # Open the item editing window
+        selected = self.tree.selection()
+        if selected:
+            index = int(selected[0])
+            item = self.manager.items[index]
+            self.manager.save_state()
+        else:
+            ean = simpledialog.askstring("Endre linje", "Legg inn strekkoden til linjen du vil endre:")
+            index = next((i for i, item in enumerate(self.manager.items) if item.ean == ean), None)
+            if index is None:
+                messagebox.showwarning("Feil EAN", f"Ingen linje med EAN {ean} er funnet i inventaret.")
+                return
         self.item_window(index)
 
     def delete_item(self):
